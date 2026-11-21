@@ -16,6 +16,40 @@
     0 12px 32px rgba(0, 0, 0, 0.08);
 }
 
+.menuEnterActive {
+  transform-origin: left top;
+  animation: menuIn 0.2s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+}
+
+.menuLeaveActive {
+  transform-origin: left top;
+  animation: menuOut 0.2s cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+@keyframes menuIn {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes menuOut {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+}
+
 .option {
   display: flex;
   align-items: center;

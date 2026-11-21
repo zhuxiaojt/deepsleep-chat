@@ -54,26 +54,28 @@ const choose = (value: string) => {
     <span :class="styles.arrow"><IconChevronDownOutline14 /></span>
   </button>
   <Teleport to="body">
-    <div
-      v-if="open && !disabled"
-      ref="floatingRef"
-      :class="styles.menu"
-      :style="position ?? undefined"
-      role="listbox"
-      :aria-label="ariaLabel"
-    >
+    <Transition :enter-active-class="styles.menuEnterActive" :leave-active-class="styles.menuLeaveActive">
       <div
-        v-for="option in options"
-        :key="option.value"
-        role="option"
-        :lang="option.lang"
-        :aria-selected="option.value === value"
-        :class="styles.option"
-        @click="choose(option.value)"
+        v-if="open && !disabled"
+        ref="floatingRef"
+        :class="styles.menu"
+        :style="position ?? undefined"
+        role="listbox"
+        :aria-label="ariaLabel"
       >
-        <span>{{ option.label }}</span>
-        <IconCheckOutline16 v-if="option.value === value" />
+        <div
+          v-for="option in options"
+          :key="option.value"
+          role="option"
+          :lang="option.lang"
+          :aria-selected="option.value === value"
+          :class="styles.option"
+          @click="choose(option.value)"
+        >
+          <span>{{ option.label }}</span>
+          <IconCheckOutline16 v-if="option.value === value" />
+        </div>
       </div>
-    </div>
+    </Transition>
   </Teleport>
 </template>

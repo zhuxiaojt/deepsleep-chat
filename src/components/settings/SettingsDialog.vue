@@ -235,7 +235,7 @@ const onCityChange = (value: string) => {
 
 <template>
   <Modal
-    v-if="open"
+    :open="open"
     :title="t('settings')"
     closable
     :class="styles.dialog"
@@ -397,7 +397,7 @@ const onCityChange = (value: string) => {
     </div>
   </Modal>
   <Modal
-    v-if="importState.file"
+    :open="Boolean(importState.file)"
     :title="t('historyImportConfirmTitle')"
     :class="styles.importConfirm"
     @close="cancelImport"
@@ -413,7 +413,7 @@ const onCityChange = (value: string) => {
     </template>
   </Modal>
   <Modal
-    v-if="deleteState.opened"
+    :open="deleteState.opened"
     :title="t('deleteAllSessionsModalTitle')"
     :class="styles.deleteConfirm"
     @close="cancelDelete"

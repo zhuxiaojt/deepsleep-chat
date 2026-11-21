@@ -3,6 +3,8 @@ declare const styles: {
   readonly "open": string;
   readonly "placeholder": string;
   readonly "arrow": string;
+  readonly "menuEnterActive": string;
+  readonly "menuLeaveActive": string;
   readonly "menu": string;
   readonly "option": string;
 };

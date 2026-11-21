@@ -154,7 +154,7 @@ export const useAnchoredPosition = (open: Ref<boolean>, options: AnchoredOptions
     cleanup = undefined
     if (!open.value) {
       lastAnchorRect = null
-      apply(null)
+      // 保留最后一次坐标，退出动画期间浮层不会回落到 (0,0)
       return
     }
     const floating = floatingRef.value

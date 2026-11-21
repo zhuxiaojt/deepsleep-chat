@@ -37,19 +37,27 @@ const select = (option: MenuOption) => {
     <slot :open="open" :toggle="toggle" />
   </span>
   <Teleport to="body">
-    <div v-if="open" ref="floatingRef" :class="styles.menu" :style="position ?? undefined" role="menu">
+    <Transition :enter-active-class="styles.menuEnterActive" :leave-active-class="styles.menuLeaveActive">
       <div
-        v-for="option in props.options"
-        :key="option.key"
-        role="menuitem"
-        :class="[styles.option, option.danger && styles.danger]"
-        @click="select(option)"
+        v-if="open"
+        ref="floatingRef"
+        :class="styles.menu"
+        :style="position ?? undefined"
+        role="menu"
       >
-        <span :class="styles.icon">
-          <component :is="option.icon" v-if="option.icon" />
-        </span>
-        {{ option.label }}
+        <div
+          v-for="option in props.options"
+          :key="option.key"
+          role="menuitem"
+          :class="[styles.option, option.danger && styles.danger]"
+          @click="select(option)"
+        >
+          <span :class="styles.icon">
+            <component :is="option.icon" v-if="option.icon" />
+          </span>
+          {{ option.label }}
+        </div>
       </div>
-    </div>
+    </Transition>
   </Teleport>
 </template>

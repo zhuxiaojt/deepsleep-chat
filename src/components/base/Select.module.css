@@ -77,6 +77,40 @@
     0 12px 32px 0 rgba(0, 0, 0, 0.08);
 }
 
+.menuEnterActive {
+  transform-origin: left top;
+  animation: selectMenuIn 0.2s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+}
+
+.menuLeaveActive {
+  transform-origin: left top;
+  animation: selectMenuOut 0.2s cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+@keyframes selectMenuIn {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes selectMenuOut {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+}
+
 .option {
   box-sizing: border-box;
   display: flex;

@@ -121,7 +121,7 @@ const confirmDelete = async () => {
     </div>
 
     <Modal
-      v-if="deleting"
+      :open="Boolean(deleting)"
       :title="t('deleteSessionModalContentTitle')"
       closable
       @close="!deletePending && (deleting = null)"

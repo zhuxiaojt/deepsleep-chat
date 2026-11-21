@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, useId } from 'vue'
+import { onBeforeUnmount, useId, watch } from 'vue'
 import { useTranslate } from '../../i18n/index.js'
 import IconButton from './IconButton.vue'
 import { IconCloseOutline16 } from './icons.js'
@@ -9,11 +9,12 @@ defineOptions({ inheritAttrs: false })
 
 const props = withDefaults(
   defineProps<{
+    open?: boolean
     title?: string
     closable?: boolean
     mainClass?: string
   }>(),
-  { title: '', closable: false }
+  { open: true, title: '', closable: false }
 )
 
 const emit = defineEmits<{ close: [] }>()
@@ -24,52 +25,71 @@ const titleId = useId()
 const openModals: object[] = []
 
 const onKeyDown = (event: KeyboardEvent) => {
-  if (event.key === 'Escape' && openModals.at(-1) === token) {
+  if (event.key === 'Escape' && props.open && openModals.at(-1) === token) {
     emit('close')
   }
 }
 
 const token = {}
-onMounted(() => {
-  openModals.push(token)
-  document.addEventListener('keydown', onKeyDown)
-})
+const removeFromStack = () => {
+  const index = openModals.indexOf(token)
+  if (index !== -1) {
+    openModals.splice(index, 1)
+  }
+}
+watch(
+  () => props.open,
+  (isOpen) => {
+    if (isOpen) {
+      openModals.push(token)
+    } else {
+      removeFromStack()
+    }
+  },
+  { immediate: true }
+)
+document.addEventListener('keydown', onKeyDown)
 onBeforeUnmount(() => {
-  openModals.splice(openModals.indexOf(token), 1)
+  removeFromStack()
   document.removeEventListener('keydown', onKeyDown)
 })
 </script>
 
 <template>
   <Teleport to="body">
-    <div :class="styles.overlay" @mousedown.self="emit('close')">
-      <div
-        :class="[styles.content, $attrs.class]"
-        role="dialog"
-        aria-modal="true"
-        :aria-labelledby="titleId"
-      >
-        <div :class="styles.header">
-          <div :id="titleId" :class="styles.title">
-            <slot name="title">{{ props.title }}</slot>
+    <Transition
+      :enter-active-class="styles.overlayEnterActive"
+      :leave-active-class="styles.overlayLeaveActive"
+    >
+      <div v-if="props.open" :class="styles.overlay" @mousedown.self="emit('close')">
+        <div
+          :class="[styles.content, $attrs.class]"
+          role="dialog"
+          aria-modal="true"
+          :aria-labelledby="titleId"
+        >
+          <div :class="styles.header">
+            <div :id="titleId" :class="styles.title">
+              <slot name="title">{{ props.title }}</slot>
+            </div>
+            <IconButton
+              v-if="closable"
+              :class="styles.close"
+              tone="primary"
+              :tooltip="t('close')"
+              @click="emit('close')"
+            >
+              <IconCloseOutline16 />
+            </IconButton>
           </div>
-          <IconButton
-            v-if="closable"
-            :class="styles.close"
-            tone="primary"
-            :tooltip="t('close')"
-            @click="emit('close')"
-          >
-            <IconCloseOutline16 />
-          </IconButton>
-        </div>
-        <div v-if="$slots.default" :class="[styles.main, props.mainClass]">
-          <slot />
-        </div>
-        <div v-if="$slots.footer" :class="styles.footer">
-          <slot name="footer" />
+          <div v-if="$slots.default" :class="[styles.main, props.mainClass]">
+            <slot />
+          </div>
+          <div v-if="$slots.footer" :class="styles.footer">
+            <slot name="footer" />
+          </div>
         </div>
       </div>
-    </div>
+    </Transition>
   </Teleport>
 </template>
