@@ -57,7 +57,7 @@ const pickSearchUrls = (seed: number) => {
 }
 
 /** 自我介绍类问题的固定答复 */
-const SELF_INTRO_ANSWER = `你好！我是 DeepSleep V4.1 Flash，由深度睡眠公司创造的 AI 助手。😊{{1}}
+const SELF_INTRO_ANSWER = `你好！我是 DeepSleep V4.1 Flash，由深度睡觉公司创造的 AI 助手。😊{{1}}
 
 我可以帮你回答问题、处理文字信息。我支持接收滚木，并从中读取滚木。我拥有 1B 的超长上下文，可以亿次性处理像《三体》三部曲那样体量的内容。目前完全免费使用。{{2}}
 有什么我可以帮你的吗？`
