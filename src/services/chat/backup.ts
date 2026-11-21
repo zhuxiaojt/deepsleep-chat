@@ -50,7 +50,7 @@ export const importHistory = (file: File): Promise<number> =>
     return replaceHistory(() => importArchive(file))
   })
 
-/** 确认删除后调用：以空历史原子替换全部本地会话与附件，保留 API Key 和其他设置。 */
+/** 确认删除后调用：以空历史原子替换全部本地会话与附件，保留其他设置。 */
 export const clearHistory = (): Promise<void> =>
   enqueueBackup(async () => {
     await replaceHistory(async () => {})

@@ -1,4 +1,4 @@
-import type { ServerToolUseBlock } from '../../api/types.js'
+import type { ServerToolUseBlock } from '../protocol.js'
 import { getVisibleMessages, normalizeSession } from '../branches.js'
 import { describeReply } from '../describe.js'
 import type { AssistantMessage, Message, ReplyBlock, Session, UserMessage } from '../types.js'

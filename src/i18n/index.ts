@@ -27,8 +27,11 @@ const translators = {
   'en-US': createTranslate(en),
 }
 
-/** 组件订阅语言变化；普通函数在调用时读取当前语言。 */
-export const useTranslate = () => useSettings((state) => translators[state.locale])
+/**
+ * 组件里 `const t = useTranslate()` 后直接 `t('key')`。
+ * 函数每次调用读取响应式的 locale，在模板渲染中调用会自动建立依赖并随语言切换刷新。
+ */
+export const useTranslate = () => translate
 
 export const translate = (key: TranslationKey, params?: TranslationParams): string =>
   translators[useSettings.getState().locale](key, params)

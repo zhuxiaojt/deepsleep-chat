@@ -1,5 +1,4 @@
 import type { TranslationMessage } from '../../i18n/index.js'
-import type { ApiErrorKind } from '../api/client.js'
 import type {
   ChatModel,
   MessageUsage,
@@ -7,12 +6,21 @@ import type {
   StopDetails,
   StopReason,
   TextCitation,
-} from '../api/types.js'
+} from './protocol.js'
+
+/** 回复错误类型；导入的历史记录可能保留旧版本的取值 */
+export type ReplyErrorKind =
+  | 'http'
+  | 'stream'
+  | 'network'
+  | 'interrupted'
+  | 'protocol'
+  | 'upload'
 
 /**
  * 消息附件。id 是本地标识（IndexedDB files 表的主键，原件按它存储，所有引用同一 id 的消息共用一份），
  * 导入的附件沿用导出产物里的文件 ID；本地没有原件的附件只展示文件名，不进入请求。
- * serverId 是 Files API 返回的 file_id，导入的数据或尚未上传成功的文件为 null，发送前补传。
+ * serverId 是上传后返回的 file_id，导入的数据或尚未上传成功的文件为 null，发送前补传。
  */
 export type FileAttachment = {
   id: string
@@ -96,7 +104,7 @@ export type AssistantMessage = MessageBranch & {
   usage?: MessageUsage
   error?: {
     /** upload：发送前补传附件失败，请求没有发出 */
-    kind: ApiErrorKind | 'upload'
+    kind: ReplyErrorKind
     message: string
     status?: number
     localMessage?: TranslationMessage

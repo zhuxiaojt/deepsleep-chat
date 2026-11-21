@@ -1,6 +1,14 @@
-import { useEffect, useState } from 'react'
+import { computed, ref, toValue, watch, type MaybeRefOrGetter } from 'vue'
 import { getFileViewType, isImage } from '../../services/attachments.js'
 import { loadFile } from '../../services/chat/db.js'
+
+/** 文件卡片的链接属性：图片或 PDF 新标签打开，其余下载 */
+export type FileViewLink = {
+  href: string
+  target?: string
+  rel?: string
+  download?: string | boolean
+}
 
 const createViewUrl = (original: Blob, type: string) => {
   const blob = original.slice(0, original.size, type || 'application/octet-stream')
@@ -17,33 +25,55 @@ const createViewUrl = (original: Blob, type: string) => {
 }
 
 /** 草稿传 File，已发送的附件传 IndexedDB 原件 ID。 */
-export const useFileView = (source: File | string, name: string) => {
-  const type = getFileViewType(name)
-  const [state, setState] = useState<{ source: File | string; type: string; url: string | null }>()
-  useEffect(() => {
-    let active = true
-    const original = typeof source === 'string' ? loadFile(source) : Promise.resolve(source)
-    const pending = original
-      .then((blob) => (active && blob ? createViewUrl(blob, type) : null))
-      .catch(() => null)
-    void pending.then((url) => {
-      if (active) {
-        setState({ source, type, url })
-      }
-    })
-    return () => {
-      active = false
+export const useFileView = (
+  source: MaybeRefOrGetter<File | string>,
+  name: MaybeRefOrGetter<string>
+) => {
+  const type = computed(() => getFileViewType(toValue(name)))
+  const state = ref<{ source: File | string; type: string; url: string | null }>()
+
+  watch(
+    [() => toValue(source), type],
+    ([current, currentType], _previous, onCleanup) => {
+      let active = true
+      const original = typeof current === 'string' ? loadFile(current) : Promise.resolve(current)
+      const pending = original
+        .then((blob) => (active && blob ? createViewUrl(blob, currentType) : null))
+        .catch(() => null)
       void pending.then((url) => {
-        if (url?.startsWith('blob:')) {
-          URL.revokeObjectURL(url)
+        if (active) {
+          state.value = { source: current, type: currentType, url }
         }
       })
-    }
-  }, [source, type])
+      onCleanup(() => {
+        active = false
+        void pending.then((url) => {
+          if (url?.startsWith('blob:')) {
+            URL.revokeObjectURL(url)
+          }
+        })
+      })
+    },
+    { immediate: true }
+  )
 
-  const url = state?.source === source && state.type === type ? state.url : undefined
-  const image = isImage(type)
-  const openInTab = type === 'application/pdf' || (image && type !== 'image/svg+xml')
-  const action = openInTab ? { target: '_blank', rel: 'noreferrer' } : { download: name }
-  return { url, image, link: url ? { href: url, ...action } : undefined }
+  const url = computed(() => {
+    const current = state.value
+    return current?.source === toValue(source) && current.type === type.value
+      ? current.url
+      : undefined
+  })
+  const image = computed(() => isImage(type.value))
+  const link = computed<FileViewLink | undefined>(() => {
+    if (!url.value) {
+      return undefined
+    }
+    const openInTab = type.value === 'application/pdf' || (image.value && type.value !== 'image/svg+xml')
+    const action = openInTab
+      ? { target: '_blank', rel: 'noreferrer' }
+      : { download: toValue(name) }
+    return { href: url.value, ...action }
+  })
+
+  return { url, image, link }
 }

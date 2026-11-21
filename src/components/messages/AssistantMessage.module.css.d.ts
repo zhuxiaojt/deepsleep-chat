@@ -5,7 +5,7 @@ declare const styles: {
   readonly "waitingDot": string;
   readonly "fading": string;
   readonly "notice": string;
-  readonly "noticeAction": string;
+
   readonly "bottom": string;
   readonly "alwaysShow": string;
   readonly "continueButton": string;

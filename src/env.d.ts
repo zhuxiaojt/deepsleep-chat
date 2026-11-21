@@ -1,15 +1,58 @@
+/// <reference types="vite/client" />
+
+declare module '*.vue' {
+  import type { DefineComponent } from 'vue'
+  const component: DefineComponent<object, object, unknown>
+  export default component
+}
+
 declare module '*.module.css' {
   const classes: Record<string, string>
   export default classes
 }
 
-declare module '*.css' {}
+declare module 'prismjs/components/*'
+declare module 'katex/contrib/mhchem'
 
-/** 公开 API 的地址，见 rspack.config.ts 的 createConfig */
-declare const __API_ORIGIN__: string
+interface SpeechRecognitionEvent extends Event {
+  results: SpeechRecognitionResultList
+}
 
-/** Prism 语言包通过副作用注册到全局 Prism */
-declare module 'prismjs/components/*' {}
+interface SpeechRecognitionResultList {
+  length: number
+  item(index: number): SpeechRecognitionResult
+  [index: number]: SpeechRecognitionResult
+}
 
-/** KaTeX 化学公式扩展通过副作用注册到 KaTeX */
-declare module 'katex/contrib/mhchem' {}
+interface SpeechRecognitionResult {
+  isFinal: boolean
+  length: number
+  item(index: number): SpeechRecognitionAlternative
+  [index: number]: SpeechRecognitionAlternative
+}
+
+interface SpeechRecognitionAlternative {
+  transcript: string
+  confidence: number
+}
+
+interface SpeechRecognition extends EventTarget {
+  lang: string
+  continuous: boolean
+  interimResults: boolean
+  start(): void
+  stop(): void
+  abort(): void
+  onresult: ((event: SpeechRecognitionEvent) => void) | null
+  onerror: ((event: Event) => void) | null
+  onend: (() => void) | null
+}
+
+declare const SpeechRecognition: {
+  new (): SpeechRecognition
+}
+
+interface Window {
+  SpeechRecognition?: typeof SpeechRecognition
+  webkitSpeechRecognition?: typeof SpeechRecognition
+}

@@ -1,14 +1,15 @@
-import { useEffect, useLayoutEffect, useRef, useSyncExternalStore } from 'react'
+import { onMounted, onUnmounted, ref, watch, type Ref } from 'vue'
 
 /** 窄于 768px 按移动端布局 */
 const query = window.matchMedia('not all and (min-width: 768px)')
 
-const subscribe = (onChange: () => void) => {
-  query.addEventListener('change', onChange)
-  return () => query.removeEventListener('change', onChange)
-}
+/** 全局响应式移动端标记，模板中直接使用会自动解包 */
+export const isMobile = ref(query.matches)
+query.addEventListener('change', () => {
+  isMobile.value = query.matches
+})
 
-export const useIsMobile = () => useSyncExternalStore(subscribe, () => query.matches)
+export const useIsMobile = () => isMobile
 
 const preventPageScroll = (event: TouchEvent) => {
   if (event.touches.length !== 1) {
@@ -20,10 +21,8 @@ const preventPageScroll = (event: TouchEvent) => {
     element = element.parentElement
   ) {
     const style = getComputedStyle(element)
-    const scrollsY =
-      /auto|scroll/.test(style.overflowY) && element.scrollHeight > element.clientHeight
-    const scrollsX =
-      /auto|scroll/.test(style.overflowX) && element.scrollWidth > element.clientWidth
+    const scrollsY = /auto|scroll/.test(style.overflowY) && element.scrollHeight > element.clientHeight
+    const scrollsX = /auto|scroll/.test(style.overflowX) && element.scrollWidth > element.clientWidth
     if (scrollsY || scrollsX) {
       return
     }
@@ -32,23 +31,33 @@ const preventPageScroll = (event: TouchEvent) => {
 }
 
 /** 阻止移动端整页滚动，保留内部可滚动区域的滚动和双指缩放。 */
-export const usePreventPageScroll = (enabled: boolean) => {
-  useEffect(() => {
-    if (!enabled) {
-      return
-    }
-    document.addEventListener('touchmove', preventPageScroll, { passive: false })
-    return () => document.removeEventListener('touchmove', preventPageScroll)
-  }, [enabled])
+export const usePreventPageScroll = (enabled: Ref<boolean>) => {
+  let remove: (() => void) | undefined
+  watch(
+    enabled,
+    (on) => {
+      remove?.()
+      remove = undefined
+      if (on) {
+        document.addEventListener('touchmove', preventPageScroll, { passive: false })
+        remove = () => document.removeEventListener('touchmove', preventPageScroll)
+      }
+    },
+    { immediate: true }
+  )
+  onUnmounted(() => remove?.())
 }
 
 /** 移动端页面跟随视觉视口，键盘弹出后顶栏和输入框仍留在可见区域。 */
-export const useMobileViewport = (enabled: boolean) => {
-  const frameRef = useRef<HTMLDivElement>(null)
+export const useMobileViewport = (enabled: Ref<boolean>) => {
+  const frameRef = ref<HTMLElement | null>(null)
+  let cleanup: (() => void) | undefined
 
-  useLayoutEffect(() => {
-    const frame = frameRef.current
-    if (!enabled || !frame) {
+  const setup = (on: boolean) => {
+    cleanup?.()
+    cleanup = undefined
+    const frame = frameRef.value
+    if (!on || !frame) {
       return
     }
     const viewport = window.visualViewport
@@ -59,19 +68,14 @@ export const useMobileViewport = (enabled: boolean) => {
       frame.style.removeProperty('--app-viewport-top')
     }
     const update = () => {
-      // 双指缩放由浏览器处理，保持当前布局尺寸。
       if (viewport && viewport.scale !== 1) {
         return
       }
-      // 失焦后直接恢复 CSS 的全高布局，不等 Safari 收键盘后的 resize。
       if (!document.activeElement?.matches(inputSelector)) {
         reset()
         return
       }
-      frame.style.setProperty(
-        '--app-viewport-height',
-        `${viewport?.height ?? window.innerHeight}px`
-      )
+      frame.style.setProperty('--app-viewport-height', `${viewport?.height ?? window.innerHeight}px`)
       frame.style.setProperty('--app-viewport-top', `${viewport?.offsetTop ?? 0}px`)
     }
     const scheduleFrame = () => {
@@ -79,7 +83,6 @@ export const useMobileViewport = (enabled: boolean) => {
       animationFrame = requestAnimationFrame(update)
     }
     const schedule = () => {
-      // 先同步跟上键盘动画，下一帧再校准 Safari 延迟更新的视口读数。
       update()
       scheduleFrame()
     }
@@ -94,9 +97,8 @@ export const useMobileViewport = (enabled: boolean) => {
     viewport?.addEventListener('scroll', schedule)
     window.addEventListener('resize', schedule)
     document.addEventListener('focusin', onFocusIn)
-    // 等点击和焦点切换完成，避免按钮移动、或切换输入框时短暂恢复全高。
     document.addEventListener('focusout', scheduleFrame)
-    return () => {
+    cleanup = () => {
       cancelAnimationFrame(animationFrame)
       viewport?.removeEventListener('resize', schedule)
       viewport?.removeEventListener('scroll', schedule)
@@ -105,7 +107,13 @@ export const useMobileViewport = (enabled: boolean) => {
       document.removeEventListener('focusout', scheduleFrame)
       reset()
     }
-  }, [enabled])
+  }
+
+  onMounted(() => {
+    watch(frameRef, () => setup(enabled.value), { immediate: true })
+    watch(enabled, setup)
+  })
+  onUnmounted(() => cleanup?.())
 
   return frameRef
 }

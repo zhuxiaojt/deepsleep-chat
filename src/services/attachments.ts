@@ -1,10 +1,5 @@
-import { create } from 'zustand'
-import type { LinkedMessage, TranslationMessage } from '../i18n/index.js'
-import { isUploadImageOversized } from '../utils/resizeUploadImage.js'
-import { uploadFile } from './api/client.js'
-import { classifyApiError, getUploadErrorInfo, isRetryableApiError } from './api/errors.js'
-import type { FilePurpose } from './api/types.js'
-import { loadFile } from './chat/db.js'
+import { createVueStore } from '../utils/vueStore.js'
+import type { TranslationMessage } from '../i18n/index.js'
 import type { FileAttachment } from './chat/types.js'
 import { ACCEPT_FILE_EXTS } from './uploadExts.js'
 
@@ -12,13 +7,11 @@ import { ACCEPT_FILE_EXTS } from './uploadExts.js'
 export const ACCEPTED_EXTS = ACCEPT_FILE_EXTS
 /** 选择文件对话框的过滤条件 */
 export const ACCEPT = ACCEPTED_EXTS.map((ext) => `.${ext}`).join(',')
-/** 单文件大小上限与 Files API 一致 */
+/** 单文件大小上限 */
 export const MAX_SIZE_MB = 64
 /** 按 user_data 上传的文件（纯文本、代码、表格、电子书）原文件上限更小 */
 export const MAX_USER_DATA_SIZE_MB = 32
 export const MAX_COUNT = 50
-/** 同时上传的文件数 */
-const MAX_CONCURRENT = 3
 
 /** 文件扩展名（小写，不含点）；没有扩展名时为空 */
 export const getFileExt = (name: string) => {
@@ -31,6 +24,8 @@ export const isAcceptedExt = (name: string) => ACCEPTED_EXTS.includes(getFileExt
 /** 需要服务端做版面解析的文档；其余非图片文件（纯文本、代码、表格、电子书）无需解析 */
 const LAYOUT_RECOGNITION_EXTS = new Set(['pdf', 'doc', 'docx', 'ppt', 'pptx'])
 
+export type FilePurpose = 'rich_layout_recognition' | 'user_data'
+
 /** 上传时的 purpose：图片不传，PDF 与 Word、PPT 做版面解析，其余按 user_data 上传 */
 export const getUploadPurpose = (name: string, isImage: boolean): FilePurpose | null => {
   if (isImage) {
@@ -39,7 +34,6 @@ export const getUploadPurpose = (name: string, isImage: boolean): FilePurpose | 
   return LAYOUT_RECOGNITION_EXTS.has(getFileExt(name)) ? 'rich_layout_recognition' : 'user_data'
 }
 
-/** 文件允许的最大体积（MB），按上传时的 purpose 区分 */
 const getMaxSizeMB = (file: File) =>
   getUploadPurpose(file.name, isImage(resolveMimeType(file))) === 'user_data'
     ? MAX_USER_DATA_SIZE_MB
@@ -60,94 +54,13 @@ export const validateFiles = (files: File[], currentCount: number): TranslationM
   return null
 }
 
-/**
- * 上传失败在附件上显示的文案：与设计稿状态对应的用具体原因，其余统一「上传失败」。
- * 服务端原文多为英文且较长，不直接展示。
- */
-export const describeUploadError = (error: unknown): TranslationMessage => {
-  if (classifyApiError(error) === 'serverBusy') {
-    return { key: 'uploadServerBusy' }
-  }
-  if (getUploadErrorInfo(error)?.code === 'parseFailed') {
-    return { key: 'uploadParseFailed' }
-  }
-  return { key: 'uploadFileStatusFailed' }
-}
+export const describeUploadError = (_error?: unknown): TranslationMessage => ({
+  key: 'uploadFileStatusFailed',
+})
 
-type NoticeListener = (notice: LinkedMessage) => void
-const noticeListeners = new Set<NoticeListener>()
+/** 保留订阅接口，Vue 版本上传为本地模拟，不会产生配额提示 */
+export const onUploadNotice = (_listener: (notice: TranslationMessage | string) => void) => () => {}
 
-/** 订阅需要额外提示的上传失败（配额达到上限），由界面层转成 toast */
-export const onUploadNotice = (listener: NoticeListener) => {
-  noticeListeners.add(listener)
-  return () => {
-    noticeListeners.delete(listener)
-  }
-}
-
-/** 删除已上传文件的接口文档 */
-const DELETE_FILE_DOCS_URL = 'https://api-docs.deepseek.com/api/delete-file'
-
-/** 文件数或存储空间达到上限：附件上只放得下「上传失败」，原因另用 toast 说明并引导删除旧文件 */
-export const describeUploadQuota = (error: unknown): LinkedMessage | undefined => {
-  const info = getUploadErrorInfo(error)
-  const link = { key: 'uploadDeleteFiles', href: DELETE_FILE_DOCS_URL } as const
-  if (info?.code === 'fileCountLimit') {
-    return { type: 'error', key: 'uploadFileCountLimit', params: { limit: info.limit ?? '' }, link }
-  }
-  if (info?.code === 'storageLimit') {
-    return { type: 'error', key: 'uploadStorageLimit', params: { limit: info.limit ?? '' }, link }
-  }
-  return undefined
-}
-
-type Job = () => Promise<void>
-const queue: Job[] = []
-let running = 0
-
-const next = () => {
-  while (running < MAX_CONCURRENT) {
-    const job = queue.shift()
-    if (!job) {
-      return
-    }
-    running++
-    void job().finally(() => {
-      running--
-      next()
-    })
-  }
-}
-
-/** 排队上传，最多同时上传 MAX_CONCURRENT 个；排队期间中止的任务不会发出请求 */
-const enqueueUpload = (
-  apiKey: string,
-  file: Blob,
-  name: string,
-  isImage: boolean,
-  signal: AbortSignal
-) =>
-  new Promise<string>((resolve, reject) => {
-    queue.push(async () => {
-      if (signal.aborted) {
-        reject(signal.reason)
-        return
-      }
-      try {
-        const body = file instanceof File ? file : new File([file], name, { type: file.type })
-        resolve((await uploadFile(apiKey, body, getUploadPurpose(name, isImage), signal)).id)
-      } catch (error) {
-        reject(error)
-      }
-    })
-    next()
-  })
-
-/**
- * 上传任务按附件的本地 id 登记：输入框选中即开始上传，全部成功后携带 serverId 发送，
- * 不会重复上传；导入的历史附件没有任务，发送前按本地原件补传。
- * 任务只在内存里，历史附件补传未完成时，刷新后会在下次请求前重新上传。
- */
 export type UploadTask =
   | { status: 'uploading' }
   | { status: 'done'; serverId: string }
@@ -155,7 +68,7 @@ export type UploadTask =
 
 type UploadState = { tasks: Record<string, UploadTask> }
 
-export const useUploads = create<UploadState>(() => ({ tasks: {} }))
+export const useUploads = createVueStore<UploadState>(() => ({ tasks: {} }))
 
 const setTask = (id: string, task: UploadTask | null) =>
   useUploads.setState((state) => ({
@@ -166,13 +79,15 @@ const setTask = (id: string, task: UploadTask | null) =>
 
 const pending = new Map<string, { promise: Promise<string>; controller: AbortController }>()
 
-/** 开始（或复用进行中的）上传，返回服务端 file_id；失败时任务记为 error 并抛出原错误 */
+/**
+ * 本地模拟上传：不请求远端，短暂延迟后把本地 id 作为 serverId 写回，
+ * 保证附件的上传中、完成态与发送门槛仍与原版一致。
+ */
 export const uploadAttachment = (
-  apiKey: string,
   id: string,
-  blob: Blob,
-  name: string,
-  isImage: boolean
+  _blob: Blob,
+  _name: string,
+  _isImage: boolean
 ): Promise<string> => {
   const current = pending.get(id)
   if (current) {
@@ -180,30 +95,25 @@ export const uploadAttachment = (
   }
   const controller = new AbortController()
   setTask(id, { status: 'uploading' })
-  const promise = enqueueUpload(apiKey, blob, name, isImage, controller.signal)
-    .then((serverId) => {
-      setTask(id, { status: 'done', serverId })
-      return serverId
-    })
-    .catch((error: unknown) => {
+  const promise = new Promise<string>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      controller.signal.removeEventListener('abort', onAbort)
       if (controller.signal.aborted) {
         setTask(id, null)
-      } else {
-        setTask(id, {
-          status: 'error',
-          error: describeUploadError(error),
-          retryable: isRetryableApiError(error),
-        })
-        const notice = describeUploadQuota(error)
-        if (notice) {
-          for (const listener of noticeListeners) {
-            listener(notice)
-          }
-        }
+        reject(controller.signal.reason)
+        return
       }
-      throw error
-    })
-    .finally(() => pending.delete(id))
+      const serverId = `local_${id}`
+      setTask(id, { status: 'done', serverId })
+      resolve(serverId)
+    }, 240)
+    const onAbort = () => {
+      clearTimeout(timer)
+      setTask(id, null)
+      reject(controller.signal.reason)
+    }
+    controller.signal.addEventListener('abort', onAbort, { once: true })
+  }).finally(() => pending.delete(id))
   pending.set(id, { promise, controller })
   return promise
 }
@@ -213,29 +123,11 @@ export const cancelUpload = (id: string) => {
   setTask(id, null)
 }
 
-/** 检查旧图片的 file_id。超限返回 null 以触发补传，无法读取原件时保留原 ID。 */
-export const checkImageFileIds = async (files: FileAttachment[], signal: AbortSignal) => {
-  const checked = new Map<string, string | null>()
-  for (const file of files) {
-    if (!file.isImage || !file.serverId || file.imageSizeChecked || checked.has(file.id)) {
-      continue
-    }
-    signal.throwIfAborted()
-    const oversized = await loadFile(file.id)
-      .then((blob) => blob && isUploadImageOversized(blob))
-      .catch(() => undefined)
-    if (oversized === undefined) {
-      continue
-    }
-    signal.throwIfAborted()
-    const task = useUploads.getState().tasks[file.id]
-    if (oversized && task?.status === 'done' && task.serverId === file.serverId) {
-      cancelUpload(file.id)
-    }
-    checked.set(file.id, oversized ? null : file.serverId)
-  }
-  return checked
-}
+/** 本地模拟上传不做尺寸检查，保留接口供历史逻辑复用 */
+export const checkImageFileIds = async (
+  _files: FileAttachment[],
+  _signal: AbortSignal
+): Promise<Map<string, string | null>> => new Map()
 
 /** 各扩展名对应的 MIME：部分系统（如 Windows）给不出 file.type，按扩展名补齐 */
 const MIME_BY_EXT: Record<string, string> = {

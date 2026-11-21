@@ -7,6 +7,7 @@ declare const styles: {
   readonly "retryOverlay": string;
   readonly "spinner": string;
   readonly "spin": string;
+  readonly "reason": string;
 };
 export = styles;
 

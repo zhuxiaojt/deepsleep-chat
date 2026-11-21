@@ -6,7 +6,7 @@ import type {
   WebFetchToolResultBlock,
   WebSearchResult,
   WebSearchToolResultBlock,
-} from '../api/types.js'
+} from './protocol.js'
 import type { AssistantMessage, ThinkingPart } from './types.js'
 
 /**

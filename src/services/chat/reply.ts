@@ -5,7 +5,7 @@ import type {
   MessageStreamEvent,
   OutputBlockStart,
   TextBlockParam,
-} from '../api/types.js'
+} from './protocol.js'
 import type {
   AssistantMessage,
   FileAttachment,
@@ -16,7 +16,7 @@ import type {
 } from './types.js'
 
 /**
- * 文件按 Files API 的 file_id（附件的 serverId）引用：图片用 image 块，其余用 document 块。
+ * 文件按 file_id（附件的 serverId）引用：图片用 image 块，其余用 document 块。
  * 发送前 streamReply 会先补齐 serverId；仍为 null 的是本地没有原件的附件，不进入请求。
  */
 const toFileBlocks = (files: FileAttachment[]): FileBlockParam[] =>
@@ -201,7 +201,7 @@ const isUsableReply = (message: Message): message is AssistantMessage =>
   !message.blocks.some((block) => block.type === 'text' && block.isTemplate) &&
   getReplyText(message) !== ''
 
-/** 有文件时用内容块数组：先文件后文本，文件按 Files API 的 file_id 引用 */
+/** 有文件时用内容块数组：先文件后文本，文件按 file_id 引用 */
 const toUserParam = ({ content, files }: UserMessage): MessageParam => {
   const blocks = toFileBlocks(files)
   return blocks.length === 0

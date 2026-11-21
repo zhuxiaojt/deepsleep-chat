@@ -1,4 +1,12 @@
-import { useEffect, useRef, useState } from 'react'
+import {
+  computed,
+  onScopeDispose,
+  ref,
+  toValue,
+  watch,
+  type ComputedRef,
+  type Ref,
+} from 'vue'
 
 /** 两次更新的最长间隔 */
 const MAX_WAIT = 2000
@@ -11,34 +19,51 @@ const TIME_CONSUMING_RATE = 2
  * 算出下次允许更新的时间点；新内容在到期时更新，连续输入合并为最新内容。
  * 关闭节流时直接返回最新内容。
  */
-export const useThrottleMarkdownRender = (content: string, enable: boolean) => {
+export const useThrottleMarkdownRender = (
+  content: Ref<string> | string,
+  enable: Ref<boolean> | boolean
+): ComputedRef<string> => {
   // 首次渲染从挂载时开始计时
-  const startRef = useRef(performance.now())
-  const updatableAtRef = useRef(0)
-  const [output, setOutput] = useState(content)
+  const start = ref(performance.now())
+  const updatableAt = ref(start.value)
+  const output = ref(toValue(content))
+  let timer: ReturnType<typeof setTimeout> | undefined
 
-  useEffect(() => {
+  const clearTimer = () => {
+    if (timer !== undefined) {
+      clearTimeout(timer)
+      timer = undefined
+    }
+  }
+
+  watch(output, () => {
     const now = performance.now()
-    updatableAtRef.current =
-      now + Math.min(MAX_WAIT, (now - startRef.current) * TIME_CONSUMING_RATE)
-  }, [output])
+    updatableAt.value = now + Math.min(MAX_WAIT, (now - start.value) * TIME_CONSUMING_RATE)
+  })
 
-  useEffect(() => {
-    if (!enable) {
-      return
-    }
-    const update = () => {
-      startRef.current = performance.now()
-      setOutput(content)
-    }
-    const delay = updatableAtRef.current - performance.now()
-    if (delay <= 0) {
-      update()
-      return
-    }
-    const timer = setTimeout(update, delay)
-    return () => clearTimeout(timer)
-  }, [content, enable])
+  watch(
+    [() => toValue(content), () => toValue(enable)],
+    ([value, enabled]) => {
+      clearTimer()
+      if (!enabled) {
+        return
+      }
+      const update = () => {
+        timer = undefined
+        start.value = performance.now()
+        output.value = value
+      }
+      const delay = updatableAt.value - performance.now()
+      if (delay <= 0) {
+        update()
+        return
+      }
+      timer = setTimeout(update, delay)
+    },
+    { immediate: true }
+  )
 
-  return enable ? output : content
+  onScopeDispose(clearTimer)
+
+  return computed(() => (toValue(enable) ? output.value : toValue(content)))
 }

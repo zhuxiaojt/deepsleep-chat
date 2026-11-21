@@ -1,30 +1,25 @@
-import { create } from 'zustand'
-import type { TtsVoice } from './api/speech.js'
 import { normalizeLocation, type UserLocation } from './location.js'
+import { createVueStore } from '../utils/vueStore.js'
 
 export type Locale = 'zh-CN' | 'en-US'
 
 /** 主题偏好；默认跟随系统 */
 export type ThemePreference = 'light' | 'dark' | 'system'
 
-/** 本机设置，存 localStorage：API Key、语言、主题、位置、朗读音色、深度思考与智能搜索开关、侧边栏收起状态 */
+/** 本机设置，存 localStorage：语言、主题、位置、深度思考与智能搜索开关、侧边栏收起状态 */
 type Settings = {
-  apiKey: string | null
   locale: Locale
   themePreference: ThemePreference
   location: UserLocation | null
-  ttsVoice: TtsVoice
   thinking: boolean
   search: boolean
   siderCollapsed: boolean
 }
 
 const KEYS = {
-  apiKey: 'chat-demo:api-key',
   locale: 'chat-demo:locale',
   location: 'chat-demo:location',
   themePreference: 'chat-demo:theme-preference',
-  ttsVoice: 'chat-demo:tts-voice',
   thinking: 'chat-demo:thinking',
   search: 'chat-demo:search',
   siderCollapsed: 'chat-demo:sider-collapsed',
@@ -84,15 +79,10 @@ const initialThemePreference = (): ThemePreference => {
   return saved === 'light' || saved === 'dark' ? saved : 'system'
 }
 
-/** 未保存过时使用服务端默认音色 stella（海星） */
-const initialTtsVoice = (): TtsVoice => (read(KEYS.ttsVoice) === 'tide' ? 'tide' : 'stella')
-
-export const useSettings = create<Settings>(() => ({
-  apiKey: read(KEYS.apiKey),
+export const useSettings = createVueStore<Settings>(() => ({
   locale: initialLocale(),
   location: initialLocation(),
   themePreference: initialThemePreference(),
-  ttsVoice: initialTtsVoice(),
   thinking: read(KEYS.thinking) === 'true',
   search: read(KEYS.search) === 'true',
   siderCollapsed: read(KEYS.siderCollapsed) === 'true',
@@ -112,16 +102,6 @@ export const setLocation = (value: UserLocation | null) => {
 export const setThemePreference = (themePreference: ThemePreference) => {
   write(KEYS.themePreference, themePreference)
   useSettings.setState({ themePreference })
-}
-
-export const setTtsVoice = (ttsVoice: TtsVoice) => {
-  write(KEYS.ttsVoice, ttsVoice)
-  useSettings.setState({ ttsVoice })
-}
-
-export const setApiKey = (apiKey: string | null) => {
-  write(KEYS.apiKey, apiKey)
-  useSettings.setState({ apiKey })
 }
 
 export const setThinking = (thinking: boolean) => {

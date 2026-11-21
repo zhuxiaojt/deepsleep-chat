@@ -1,4 +1,4 @@
-import { create } from 'zustand'
+import { createVueStore } from '../../utils/vueStore.js'
 import type { TranslationMessage } from '../../i18n/index.js'
 import { createId } from '../../utils/id.js'
 import {
@@ -23,7 +23,7 @@ type Draft = { text: string; attachments: DraftAttachment[] }
 export const EMPTY_DRAFT: Draft = { text: '', attachments: [] }
 
 /** 草稿只保存在本次页面的内存中，独立于会话详情缓存；null 是新对话的草稿。 */
-export const useDrafts = create<{ drafts: Map<string | null, Draft> }>(() => ({
+export const useDrafts = createVueStore<{ drafts: Map<string | null, Draft> }>(() => ({
   drafts: new Map(),
 }))
 
@@ -45,23 +45,14 @@ const updateDraft = (sessionId: string | null, update: (draft: Draft) => Draft) 
 export const setDraftText = (sessionId: string | null, text: string) =>
   updateDraft(sessionId, (draft) => ({ ...draft, text }))
 
-const upload = (attachment: DraftAttachment, apiKey: string) => {
-  // 上传任务负责记录错误，输入框的附件卡片展示失败及重试入口。
-  void uploadAttachment(
-    apiKey,
-    attachment.id,
-    attachment.file,
-    attachment.file.name,
-    attachment.isImage
-  ).catch(() => {})
+const upload = (attachment: DraftAttachment) => {
+  void uploadAttachment(attachment.id, attachment.file, attachment.file.name, attachment.isImage).catch(
+    () => {}
+  )
 }
 
 /** 整批校验通过后才加入草稿并开始上传。 */
-export const addDraftFiles = (
-  sessionId: string | null,
-  files: File[],
-  apiKey: string
-): TranslationMessage | null => {
+export const addDraftFiles = (sessionId: string | null, files: File[]): TranslationMessage | null => {
   if (files.length === 0) {
     return null
   }
@@ -77,18 +68,14 @@ export const addDraftFiles = (
     })
   )
   updateDraft(sessionId, (draft) => ({ ...draft, attachments: [...draft.attachments, ...added] }))
-  added.forEach((attachment) => upload(attachment, apiKey))
+  added.forEach(upload)
   return null
 }
 
-export const retryDraftAttachment = (
-  sessionId: string | null,
-  attachmentId: string,
-  apiKey: string
-) => {
+export const retryDraftAttachment = (sessionId: string | null, attachmentId: string) => {
   const attachment = getDraft(sessionId).attachments.find((item) => item.id === attachmentId)
   if (attachment) {
-    upload(attachment, apiKey)
+    upload(attachment)
   }
 }
 

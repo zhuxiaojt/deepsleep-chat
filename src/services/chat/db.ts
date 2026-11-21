@@ -1,5 +1,27 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
+import { toRaw } from 'vue'
 import { toSessionSummary, type Session, type SessionSummary } from './types.js'
+
+/** IndexedDB 只能存结构化克隆对象，Vue 响应式代理需先转成普通对象。 */
+const toPlain = <T>(value: T): T => {
+  const raw = toRaw(value)
+  if (Array.isArray(raw)) {
+    return raw.map((item) => toPlain(item)) as T
+  }
+  if (
+    raw &&
+    typeof raw === 'object' &&
+    !(raw instanceof Blob) &&
+    !(raw instanceof Date)
+  ) {
+    const result: Record<string, unknown> = {}
+    for (const [key, item] of Object.entries(raw)) {
+      result[key] = toPlain(item)
+    }
+    return result as T
+  }
+  return raw
+}
 
 /** IndexedDB 存储结构版本；新增或调整存储、索引时递增。 */
 const DB_VERSION = 11
@@ -82,15 +104,16 @@ export const loadSession = async (id: string): Promise<Session | undefined> =>
   (await getDB()).get('sessions', id)
 
 export const saveSession = async (session: Session, files: StoredFile[] = []): Promise<void> => {
-  const summary = storedSummary(session)
+  const plain = toPlain(session)
+  const summary = storedSummary(plain)
   const tx = (await getDB()).transaction(['sessions', 'sessionSummaries', 'files'], 'readwrite')
   await Promise.all([
     (async () => {
       try {
         for (const file of files) {
-          await tx.objectStore('files').put(file)
+          await tx.objectStore('files').put(toPlain(file))
         }
-        await tx.objectStore('sessions').put(session)
+        await tx.objectStore('sessions').put(plain)
         await tx.objectStore('sessionSummaries').put(summary)
       } catch (error) {
         abortTransaction(tx)
@@ -149,7 +172,7 @@ export const deleteSession = async (sessionId: string): Promise<void> => {
 
 const putFiles = async (store: 'files' | 'filesStaging', files: StoredFile[]) => {
   const tx = (await getDB()).transaction(store, 'readwrite')
-  await Promise.all([...files.map((file) => tx.store.put(file)), tx.done])
+  await Promise.all([...files.map((file) => tx.store.put(toPlain(file))), tx.done])
 }
 
 export const saveFiles = (files: StoredFile[]): Promise<void> => putFiles('files', files)

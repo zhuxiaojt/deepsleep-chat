@@ -67,20 +67,6 @@
   }
 }
 
-.noticeAction {
-  padding: 0;
-  border: none;
-  background: none;
-  font: inherit;
-  color: var(--dsw-alias-brand-text);
-  text-decoration: none;
-  cursor: pointer;
-
-  &:hover {
-    text-decoration: underline;
-  }
-}
-
 .bottom {
   position: relative;
   left: -6px;

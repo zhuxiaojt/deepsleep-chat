@@ -1,26 +1,20 @@
-import { useSyncExternalStore } from 'react'
+import { computed, watch } from 'vue'
 import { useSettings, type ThemePreference } from '../services/settings.js'
 
 export type Theme = 'light' | 'dark'
 
 const query = window.matchMedia('(prefers-color-scheme: dark)')
 
-const subscribeOsTheme = (listener: () => void) => {
-  query.addEventListener('change', listener)
-  return () => query.removeEventListener('change', listener)
-}
-
-const getOsTheme = (): Theme => (query.matches ? 'dark' : 'light')
-
 const resolveTheme = (preference: ThemePreference, osTheme: Theme): Theme =>
   preference === 'system' ? osTheme : preference
 
+const getOsTheme = (): Theme => (query.matches ? 'dark' : 'light')
+
 /** 当前实际生效的深浅色：手动选择优先，「跟随系统」时取系统设置 */
-export const useTheme = (): Theme => {
-  const preference = useSettings((state) => state.themePreference)
-  const osTheme = useSyncExternalStore(subscribeOsTheme, getOsTheme)
-  return resolveTheme(preference, osTheme)
-}
+export const useTheme = () =>
+  computed<Theme>(() =>
+    resolveTheme(useSettings.getState().themePreference, getOsTheme())
+  )
 
 const syncPageBackground = () => {
   const backgroundColor = getComputedStyle(document.body).backgroundColor
@@ -31,7 +25,6 @@ const syncPageBackground = () => {
 /** 同步页面主题、根画布背景和支持 theme-color 的浏览器栏。 */
 const applyTheme = (theme: Theme) => {
   const body = document.body
-  // 主题切换帧禁用过渡，使页面颜色同步更新
   body.classList.add('change-theme')
   body.classList.toggle('dark', theme === 'dark')
   body.classList.toggle('light', theme === 'light')
@@ -41,7 +34,6 @@ const applyTheme = (theme: Theme) => {
     body.removeAttribute('data-ds-dark-theme')
   }
   document.documentElement.style.colorScheme = theme
-  // 首次背景色同步在样式表加载完成后执行，适配 WebKit 的 defer 脚本执行顺序。
   if (document.readyState === 'complete') {
     syncPageBackground()
   }
@@ -67,5 +59,5 @@ export const setupTheme = () => {
     window.addEventListener('load', syncPageBackground, { once: true })
   }
   query.addEventListener('change', syncTheme)
-  useSettings.subscribe(syncTheme)
+  watch(() => useSettings.getState().themePreference, syncTheme)
 }
